@@ -11,31 +11,41 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 
 import type { Session } from "@acme/auth";
-import { auth, validateToken } from "@acme/auth";
-import { db } from "@acme/db/client";
-
-/**
- * Isomorphic Session getter for API requests
- * - Expo requests will have a session token in the Authorization header
- * - Next.js requests will have a session token in cookies
- */
-const isomorphicGetSession = async (headers: Headers) => {
-  const authToken = headers.get("Authorization") ?? null;
-  if (authToken) return validateToken(authToken);
-  return auth();
-};
+import { prisma } from "@acme/db";
 
 /**
  * 1. CONTEXT
  *
  * This section defines the "contexts" that are available in the backend API.
  *
- * These allow you to access things when processing a request, like the database, the session, etc.
+ * These allow you to access things like the database, the session, etc, when
+ * processing a request
  *
- * This helper generates the "internals" for a tRPC context. The API handler and RSC clients each
- * wrap this and provides the required context.
+ */
+interface CreateContextOptions {
+  session: Session | null;
+}
+
+/**
+ * This helper generates the "internals" for a tRPC context. If you need to use
+ * it, you can export it from here
  *
- * @see https://trpc.io/docs/server/context
+ * Examples of things you may need it for:
+ * - testing, so we dont have to mock Next.js' req/res
+ * - trpc's `createSSGHelpers` where we don't have req/res
+ * @see https://create.t3.gg/en/usage/trpc#-servertrpccontextts
+ */
+const createInnerTRPCContext = (opts: CreateContextOptions) => {
+  return {
+    session: opts.session,
+    prisma,
+  };
+};
+
+/**
+ * This is the actual context you'll use in your router. It will be used to
+ * process every request that goes through your tRPC endpoint
+ * @link https://trpc.io/docs/context
  */
 export const createTRPCContext = async (opts: {
   headers: Headers;
